@@ -1,0 +1,44 @@
+name: 反编译 Mewgenics.exe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  decomp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装 Java
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openjdk-21-jdk-headless unzip
+
+      - name: 下载 Ghidra
+        run: |
+          curl -sSL -o ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
+          unzip -q ghidra.zip
+          ls -d ghidra_*
+
+      - name: 反编译
+        env:
+          OUT_DIR: /tmp/ghidra_out
+        run: |
+          GH=$(ls -d ghidra_* | head -1)
+          mkdir -p /tmp/ghidra_out
+          "$GH/support/analyzeHeadless" /tmp/proj MewProject             -import Mewgenics.exe             -scriptPath tools             -postScript DumpC.java             -deleteProject 2>&1 | tail -40
+          ls /tmp/ghidra_out | head
+          wc -l /tmp/ghidra_out/index.tsv || true
+
+      - name: 打包
+        run: |
+          cp -r /tmp/ghidra_out out
+          tar -czf decomp.tgz out
+          ls -lh decomp.tgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decomp
+          path: decomp.tgz
+          if-no-files-found: error
