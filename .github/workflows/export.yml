@@ -20,24 +20,32 @@ jobs:
           curl -sSL -o ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
           unzip -q ghidra.zip
 
-      - name: 分析并导出（手册 export_decompiled.py）
+      - name: 分析并导出
         run: |
           GH=$(ls -d ghidra_* | head -1)
-          mkdir -p ghidra_proj
-          "$GH/support/analyzeHeadless" ./ghidra_proj WinPortProj \
-            -import Mewgenics.exe \
-            -scriptPath tools \
+          rm -rf /tmp/ghidra_proj && mkdir -p /tmp/ghidra_proj
+          "$GH/support/analyzeHeadless" /tmp/ghidra_proj WinPortProj \
+            -import "$PWD/Mewgenics.exe" \
+            -scriptPath "$PWD/tools" \
             -postScript export_decompiled.py \
-            -analysisTimeoutPerFile 600 > /tmp/headless.log 2>&1 || true
-          tail -20 /tmp/headless.log || true
-          ls -l decompiled_out || true
+            -analysisTimeoutPerFile 600 \
+            -deleteProject > /tmp/headless.log 2>&1 || true
+          tail -25 /tmp/headless.log || true
+          echo "--- find outputs ---"
+          find / -maxdepth 6 -name all_functions.c 2>/dev/null | head
+          ls -l decompiled_out 2>/dev/null || true
 
       - name: 打包
         if: always()
         run: |
-          cp /tmp/headless.log . || true
-          tar -czf decomp_full.tgz decompiled_out headless.log 2>/dev/null || tar -czf decomp_full.tgz headless.log
+          mkdir -p collect
+          cp -r decompiled_out/* collect/ 2>/dev/null || true
+          find . -maxdepth 3 -name 'all_functions.c' -exec cp {} collect/ \; 2>/dev/null || true
+          find . -maxdepth 3 -name 'win32_api_calls.txt' -exec cp {} collect/ \; 2>/dev/null || true
+          cp /tmp/headless.log collect/ 2>/dev/null || true
+          tar -czf decomp_full.tgz collect
           ls -lh decomp_full.tgz
+          ls -lh collect | head
 
       - uses: actions/upload-artifact@v4
         if: always()
