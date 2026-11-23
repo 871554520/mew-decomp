@@ -1,0 +1,47 @@
+name: 反编译导出（手册流程）
+
+on:
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装 Java
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openjdk-21-jdk-headless unzip
+
+      - name: 下载 Ghidra
+        run: |
+          curl -sSL -o ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
+          unzip -q ghidra.zip
+
+      - name: 分析并导出（手册 export_decompiled.py）
+        run: |
+          GH=$(ls -d ghidra_* | head -1)
+          mkdir -p ghidra_proj
+          "$GH/support/analyzeHeadless" ./ghidra_proj WinPortProj \
+            -import Mewgenics.exe \
+            -scriptPath tools \
+            -postScript export_decompiled.py \
+            -analysisTimeoutPerFile 600 > /tmp/headless.log 2>&1 || true
+          tail -20 /tmp/headless.log || true
+          ls -l decompiled_out || true
+
+      - name: 打包
+        if: always()
+        run: |
+          cp /tmp/headless.log . || true
+          tar -czf decomp_full.tgz decompiled_out headless.log 2>/dev/null || tar -czf decomp_full.tgz headless.log
+          ls -lh decomp_full.tgz
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: decomp-full
+          path: decomp_full.tgz
+          if-no-files-found: warn
