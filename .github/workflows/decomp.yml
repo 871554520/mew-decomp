@@ -6,11 +6,11 @@ on:
 jobs:
   decomp:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
 
-      - name: 装 Java
+      - name: 装 Java 与 unzip
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq openjdk-21-jdk-headless unzip
@@ -25,20 +25,30 @@ jobs:
         env:
           OUT_DIR: /tmp/ghidra_out
         run: |
+          set -e
           GH=$(ls -d ghidra_* | head -1)
-          mkdir -p /tmp/ghidra_out
-          "$GH/support/analyzeHeadless" /tmp/proj MewProject             -import Mewgenics.exe             -scriptPath tools             -postScript DumpC.java             -deleteProject 2>&1 | tail -40
-          ls /tmp/ghidra_out | head
-          wc -l /tmp/ghidra_out/index.tsv || true
+          mkdir -p /tmp/proj /tmp/ghidra_out
+          "$GH/support/analyzeHeadless" /tmp/proj MewProject \
+            -import Mewgenics.exe \
+            -scriptPath tools \
+            -postScript DumpC.java \
+            -deleteProject > /tmp/headless.log 2>&1 || true
+          tail -30 /tmp/headless.log
+          echo "--- out ---"
+          ls -l /tmp/ghidra_out | head
+          echo "index lines: $(wc -l < /tmp/ghidra_out/index.tsv || echo 0)"
 
       - name: 打包
+        if: always()
         run: |
-          cp -r /tmp/ghidra_out out
+          mkdir -p out && cp -r /tmp/ghidra_out/* out/ 2>/dev/null || true
+          cp /tmp/headless.log out/ 2>/dev/null || true
           tar -czf decomp.tgz out
           ls -lh decomp.tgz
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: decomp
           path: decomp.tgz
-          if-no-files-found: error
+          if-no-files-found: warn
