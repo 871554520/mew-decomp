@@ -82,4 +82,13 @@ typedef void code();
 #define BOOL int
 #endif
 
+
+/* Windows 过程指针与 TEB 变量（Ghidra 会直接引用） */
+typedef void (*PROC)();
+typedef void (*FARPROC_ALT)();
+extern unsigned long long ThreadLocalStoragePointer;
+extern unsigned long long TEB;
+extern unsigned long long PEB;
+extern unsigned long long _tls_index;
+
 #endif
