@@ -65,7 +65,8 @@ def fix_text(text):
             out.append(line)
             continue
         stripped = line.lstrip()
-        if stripped.startswith('/*') or stripped.startswith('*'):
+        # 只有 /* 开头才算注释；`*param_1 = ...` 这样的解引用语句必须处理
+        if stripped.startswith('/*'):
             if '*/' not in line:
                 in_block = True
             out.append(line)
