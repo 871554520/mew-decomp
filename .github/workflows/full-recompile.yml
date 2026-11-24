@@ -57,11 +57,13 @@ jobs:
           cd "$DIR"
           sed -E -i 's/\b[A-Za-z_][A-Za-z0-9_]*:://g' sample_shard.c
           python3 "$GITHUB_WORKSPACE/tools/postprocess_sample.py" sample_shard.c functypes.h
+          python3 "$GITHUB_WORKSPACE/tools/repair_member_access.py" sample_shard.c
           python3 "$GITHUB_WORKSPACE/tools/derive_decls.py" sample_shard.c
           python3 "$GITHUB_WORKSPACE/tools/split_functions.py" sample_shard.c perf
           cp globals.h perf/globals.h
           cp shim.h perf/shim.h
           cp functypes.h perf/functypes.h
+          python3 "$GITHUB_WORKSPACE/tools/repair_member_access.py" perf
           python3 "$GITHUB_WORKSPACE/tools/add_functypes_include.py" perf
 
           CFLAGS="-std=gnu89 -w -Wno-error -Wno-int-conversion -Wno-incompatible-pointer-types"
