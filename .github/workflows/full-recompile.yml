@@ -1,0 +1,119 @@
+name: Full recompile (all functions, sharded)
+
+on:
+  push:
+    paths:
+      - '.full-trigger'
+  workflow_dispatch:
+
+jobs:
+  shard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install JDK clang unzip
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq openjdk-21-jdk-headless unzip clang
+
+      - name: Check exe
+        run: ls -l Mewgenics.exe
+
+      - name: Ghidra
+        run: |
+          curl -sSL -o ghidra.zip https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
+          unzip -q ghidra.zip
+          ls -d ghidra_*
+
+      - name: Decompile this shard
+        env:
+          MEW_SHARD: ${{ matrix.shard }}
+          MEW_SHARDS: '8'
+        run: |
+          set -o pipefail
+          GH=$(ls -d ghidra_* | head -1)
+          mkdir -p /tmp/proj /tmp/ghidra_out/shard${{ matrix.shard }}
+          START=$(date +%s)
+          "$GH/support/analyzeHeadless" /tmp/proj MewProject \
+            -import Mewgenics.exe \
+            -scriptPath tools/ghidra \
+            -postScript DumpShard.java \
+            -deleteProject 2>&1 | tail -12
+          echo "seconds: $(( $(date +%s) - START ))"
+          wc -l /tmp/ghidra_out/shard${{ matrix.shard }}/index.tsv || true
+
+      - name: Compile every function in this shard
+        run: |
+          set -uo pipefail
+          DIR=/tmp/ghidra_out/shard${{ matrix.shard }}
+          cp tools/ghidra/shim.h "$DIR/shim.h"
+          cd "$DIR"
+          sed -E -i 's/\b[A-Za-z_][A-Za-z0-9_]*:://g' sample_shard.c
+          python3 "$GITHUB_WORKSPACE/tools/derive_decls.py" sample_shard.c
+          python3 "$GITHUB_WORKSPACE/tools/split_functions.py" sample_shard.c perf
+          cp globals.h perf/globals.h
+          cp shim.h perf/shim.h
+
+          CFLAGS="-std=gnu89 -w -Wno-error -Wno-int-conversion -Wno-incompatible-pointer-types"
+
+          SYN=0
+          if clang $CFLAGS -fsyntax-only -x c -I. -ferror-limit=3000 sample_shard.c > syn.log 2>&1; then
+            SYN=1
+          fi
+
+          OKF=0
+          BADF=0
+          CODEOK=0
+          CODEBAD=0
+          : > errcount.txt
+          : > results.tsv
+          cd perf
+          for f in f_*.c; do
+            [ -e "$f" ] || break
+            if clang $CFLAGS -fsyntax-only -x c -I. "$f" 2> /tmp/e.txt; then
+              OKF=$((OKF+1))
+              echo 0 >> ../errcount.txt
+              if clang $CFLAGS -c -O0 -x c -I. "$f" -o /tmp/o.o 2> /tmp/g.txt; then
+                CODEOK=$((CODEOK+1))
+              else
+                CODEBAD=$((CODEBAD+1))
+              fi
+              printf '%s\tOK\n' "$f" >> ../results.tsv
+            else
+              BADF=$((BADF+1))
+              grep -c "error:" /tmp/e.txt >> ../errcount.txt || echo 1 >> ../errcount.txt
+              MSG=$(grep -m1 "error:" /tmp/e.txt | sed 's/.*error: //' | cut -c1-100)
+              printf '%s\tFAIL\t%s\n' "$f" "$MSG" >> ../results.tsv
+            fi
+          done
+          cd ..
+
+          {
+            echo "shard=${{ matrix.shard }}"
+            echo "functions=$(wc -l < index.tsv)"
+            echo "clean=$OKF"
+            echo "dirty=$BADF"
+            echo "codegen_ok=$CODEOK"
+            echo "single_tu_ok=$SYN"
+          } > shard-summary.txt
+          cat shard-summary.txt
+          awk '{ if ($1>10) $1=11; c[$1]++ } END { for (k=0;k<=11;k++) if (c[k]) printf "errors=%s functions=%d\n", (k==11?">10":k), c[k] }' errcount.txt > dist.txt
+          cat dist.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-shard-${{ matrix.shard }}
+          path: |
+            /tmp/ghidra_out/shard${{ matrix.shard }}/shard-summary.txt
+            /tmp/ghidra_out/shard${{ matrix.shard }}/dist.txt
+            /tmp/ghidra_out/shard${{ matrix.shard }}/results.tsv
+            /tmp/ghidra_out/shard${{ matrix.shard }}/syn.log
+          if-no-files-found: warn
