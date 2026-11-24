@@ -32,7 +32,7 @@ typedef int bool32;
 
 /* code = 指令/函数体。用「无原型」函数类型：
    code *p; p(a, b) 合法（K&R 风格），避免 "too many arguments" 成片报错 */
-typedef void code();
+typedef unsigned long long code();
 
 /* Ghidra 的拼接/拆位伪函数 */
 #define CONCAT44(hi, lo) (((unsigned long long)(unsigned int)(hi) << 32) | (unsigned int)(lo))
