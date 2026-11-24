@@ -59,6 +59,7 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tools/postprocess_sample.py" sample_shard.c functypes.h
           python3 "$GITHUB_WORKSPACE/tools/repair_member_access.py" sample_shard.c
           python3 "$GITHUB_WORKSPACE/tools/derive_decls.py" sample_shard.c
+          python3 "$GITHUB_WORKSPACE/tools/repair_scalar_access.py" sample_shard.c globals.h
           python3 "$GITHUB_WORKSPACE/tools/split_functions.py" sample_shard.c perf
           cp globals.h perf/globals.h
           cp shim.h perf/shim.h
