@@ -17,6 +17,10 @@
 typedef unsigned char undefined;
 typedef unsigned char undefined1;
 typedef unsigned short undefined2;
+typedef unsigned char undefined3;
+typedef unsigned int undefined5;
+typedef unsigned int undefined6;
+typedef unsigned int undefined7;
 typedef unsigned int undefined4;
 typedef unsigned long long undefined8;
 typedef signed char char1;
@@ -90,5 +94,23 @@ extern unsigned long long ThreadLocalStoragePointer;
 extern unsigned long long TEB;
 extern unsigned long long PEB;
 extern unsigned long long _tls_index;
+
+
+/* Ghidra 的按尺寸整数类型 */
+typedef unsigned char int1;
+typedef unsigned short int2;
+typedef unsigned int int3;
+typedef unsigned int int4;
+typedef unsigned long long int8;
+typedef unsigned char uint1;
+typedef unsigned short uint2;
+typedef unsigned int uint3;
+typedef unsigned int uint4;
+typedef unsigned long long uint8;
+typedef unsigned char undefined9;
+typedef unsigned short undefined10;
+typedef unsigned int undefined11;
+typedef unsigned int undefined12;
+typedef unsigned long long undefined16;
 
 #endif
