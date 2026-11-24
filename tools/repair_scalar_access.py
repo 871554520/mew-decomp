@@ -70,9 +70,15 @@ def load_globals(path):
 
 def fix(text, globals_set):
     masked = mask(text)
-    # 只处理 globals.h 里声明的全局标量：
-    # 局部变量可能是数组声明（`undefined1 x [16];`），把它的声明改掉会生成非法 C（v16 实测 4,918 条）
+    # 全局标量：直接可信
     scalars = set(globals_set)
+    # 局部标量：只认「声明里没有 [」的单值声明，避免把数组声明改坏（v16 的教训）
+    for m in re.finditer(r'^\s*(?:unsigned\s+long\s+long|longlong|ulonglong|undefined\d*|int\d*|uint\d*|long|short|char)\s+'
+                         r'([A-Za-z_][A-Za-z0-9_]*)\s*(?:=[^;\n]*)?;', masked, re.M):
+        name = m.group(1)
+        decl = m.group(0)
+        if '[' not in decl:
+            scalars.add(name)
 
     edits = []  # (start, end, replacement)
     for m in IDX.finditer(masked):
