@@ -84,11 +84,8 @@ def fix(text, globals_set):
         repl = '(*(unsigned long long *)((char *)&%s + 8*(%s)))' % (name, idx.strip())
         edits.append((m.start(), m.end(), repl))
 
-    for m in DEREF.finditer(masked):
-        name = m.group(1)
-        if name not in scalars:
-            continue
-        edits.append((m.start(), m.end(), '(*(unsigned long long *)((char *)&%s))' % name))
+    # 注意：`*NAME` 的改写会误伤指针声明（`unsigned long long *p;`），v15 实测导致 7,516 条
+    # 语法错误，因此默认关闭，只做下标改写。
 
     # 从后往前应用，避免位移
     edits.sort(key=lambda e: e[0], reverse=True)
